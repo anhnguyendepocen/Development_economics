@@ -44,8 +44,10 @@ cons_merge = merge(merge1, cons3, by = 'Household_id', all= TRUE)
 #head(cons_merge,3)
 
 #1.1.1 Calculate total consumer spending¶
-total_cons = cons_merge %>% mutate(consumption = select(cons_merge,-Household_id)%>% {rowSums(.)})
+total_cons = cons_merge %>% 
+  mutate(consumption = select(cons_merge,-Household_id)%>% {rowSums(.)})
 total_cons[["consumption"]][is.na(total_cons[["consumption"]])] <- 0
+
 
 #Q.1.2 Per capita consumption (Total/house size)¶
 df_housesize = read.dta(paste(path,'/hh02dta_bc/c_ls.dta', sep=''))
@@ -75,7 +77,9 @@ summary(percap_consum)
 
 #2.1 Headcount using 500 as an example¶
 povertyline = 500
-below_poverty = percap_consum %>%filter(percap_consum < povertyline )%>% select(percap_consum) 
+below_poverty = percap_consum %>%
+  filter(percap_consum < povertyline )%>% select(percap_consum) 
+
 observations = length(percap_consum$percap_consum)
 head_count = length(below_poverty$percap_consum)/observations
 print(paste('Headcount: ', round(head_count*100, 2),'%', sep=''), quote=FALSE)
@@ -113,7 +117,7 @@ consum_residence_df %>%
 gini = percap_consum %>% 
   arrange(percap_consum) %>% #Sort consumption from least to greatest
   mutate(consum_cumulative = cumsum(percap_consum), consum_total = sum(percap_consum), pop_total = sum(family_members), pop_cumulative = cumsum(family_members))%>% #Calculate total and cumulative sum for variables 
-  mutate(consum_pct = (consum_cumulative/consum_total), pop_pct= ((pop_cumulative/ pop_total))) #Calculate quintiles
+  mutate(consum_pct = (consum_cumulative/consum_total), pop_pct = ((pop_cumulative/ pop_total))) #Calculate quintiles
 gini %>% head(3) #Show new data
 
 gini[is.na(gini)] <- 0
@@ -126,7 +130,47 @@ ggplot(data= gini, aes(x=pop_pct, y= consum_pct))+
   geom_abline(intercept = 0, slope = 1, color='red')+xlab('cum. % of households')+ylab('cum. % consum/percap')
 
 
+cov_consum_V_consum_pct = cov(gini$percap_consum, gini$consum_pct) 
+mean_cons = mean(gini$percap_consum)
+print((2*cov_consum_V_consum_pct)/(mean_cons))
 
+# 4.2 4.2 Urban vs. Rural: Lorenz and Gini¶
+#4.2.1.1 Urban: Calculate cumulative sum for population and consumption¶
+urban = consum_residence_df %>% 
+  arrange(percap_consum) %>%
+  select(estrato,percap_consum, family_members)%>%
+  filter(estrato==1 | estrato==2)%>% #select estrato 1&2 MOST IMPORTANT CODE
+  mutate(consum_cumulative = cumsum(percap_consum), consum_total = sum(percap_consum), pop_total = sum(family_members), pop_cumulative = cumsum(family_members))%>% #Calculate total and cumulative sum for variables 
+  mutate(consum_pct = (consum_cumulative/consum_total), pop_pct= ((pop_cumulative/ pop_total))) #Calculate quintiles
 
+#4.2.1.2 Plot Lorenz curve for Urban¶
+ggplot(data= urban, aes(x=pop_pct, y= consum_pct))+ 
+  ggtitle("Lorenz curve")+theme(plot.title = element_text(hjust = 0.5))+ 
+  geom_line()+ 
+  geom_abline(intercept = 0, slope = 1, color='red')+xlab('cum. % of households')+ylab('cum. % consum/percap')
 
+#4.2.1.3 Urban: Gini coefficient¶
+cov_consum_V_consum_pct = cov(urban$percap_consum, urban$consum_pct) 
+mean_cons = mean(urban$percap_consum)
+print((2*cov_consum_V_consum_pct)/(mean_cons))
 
+#4.2.2.1 Rural: Calculate cumulative sum for population and consumption¶
+rural = consum_residence_df %>% 
+  arrange(percap_consum) %>%
+  select(estrato,percap_consum, family_members)%>%
+  filter(estrato==3 | estrato==4)%>% #select estrato 1&2 MOST IMPORTANT CODE
+  mutate(consum_cumulative = cumsum(percap_consum), consum_total = sum(percap_consum), pop_total = sum(family_members), pop_cumulative = cumsum(family_members))%>% #Calculate total and cumulative sum for variables 
+  mutate(consum_pct = (consum_cumulative/consum_total), pop_pct= ((pop_cumulative/ pop_total))) #Calculate quintiles
+
+rural %>%tail(3)
+
+#4.2.1.2 Plot Lorenz curve for Urban¶
+
+ggplot(data= rural, aes(x=pop_pct, y= consum_pct))+ 
+  ggtitle("Lorenz curve")+theme(plot.title = element_text(hjust = 0.5))+ 
+  geom_line()+ 
+  geom_abline(intercept = 0, slope = 1, color='red')+xlab('cum. % of households')+ylab('cum. % consum/percap')
+#4.2.1.3 Urban: Gini coefficient¶
+cov_consum_V_consum_pct = cov(rural$percap_consum, rural$consum_pct) 
+mean_cons = mean(rural$percap_consum)
+print((2*cov_consum_V_consum_pct)/(mean_cons))
