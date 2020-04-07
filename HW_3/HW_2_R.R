@@ -18,11 +18,8 @@ library(foreign)
 library(dplyr)
 
 # A. Import data
-
-
 # ## A.1.1 Import labor participation data "c_ls.dta"
 # - used in Q.1
-
 df_labor =  read.dta("hh02dta_bc/c_ls.dta")
 df_labor = as_tibble(df_labor )
 #str(df_labor)
@@ -41,8 +38,13 @@ head(df_income,3)
 ## Q.1.1 What is the labor market participation of men and women aged 16 to 65
 ### 1.1.1 Filter ages 16-65
 
-df_labor$Worked_dummy = plyr::mapvalues(df_labor$ls12,from= c(3,1), to=c(0,1))
-ages_16to65 <- df_labor[which(df_labor$ls02_2>15 & df_labor$ls02_2<66),]
+#Worked_my is the new variable--plyr::mapvalues is the maping function--
+df_labor$Worked_dummy = plyr::mapvalues(df_labor$ls12,from= c(3,1), to=c(0,1)) #
+
+#ages_16to65 <- df_labor[which(df_labor$ls02_2>15 & df_labor$ls02_2<66),]
+ages_16to65  = df_labor %>% filter(ls02_2>15  & ls02_2<66)
+
+#ages_16to65$Worked_dummy = plyr::mapvalues(ages_16to65$ls12,from= c(3,1), to=c(0,1)) #
 head(ages_16to65,3)
 
 unique(ages_16to65$Worked_dummy)
@@ -50,12 +52,14 @@ unique(ages_16to65$Worked_dummy)
 ### 1.1.2 Filter men and women
 
 ages_16to65$gender = plyr::mapvalues(ages_16to65$ls04,from= c(1,3), to=c ("Male","Female"))
+ages_16to65 %>% select(gender, ls04)
+
 
 ages_16to65 %>%
-  group_by(gender)%>%
-  select(Worked_dummy)%>%
+  group_by(gender)%>% #Groupby compares genders
+  select(Worked_dummy)%>% #Labor force participation
   na.omit()%>%
-  summarise(Labor_force_participation = 100*mean(Worked_dummy))
+  summarise(Answer_112 = mean(Worked_dummy))
 
 ## Q1.2 Provide labor market participation rates by 5 year age ranges for men and women.
 ### 1.2.1 We cannot use simple groupby function to pull age range
@@ -63,7 +67,7 @@ ages_16to65%>%
   group_by(ls02_2)%>%
   select(Worked_dummy)%>%
   na.omit()%>%
-  summarise(Labor_force_participation = 100*mean(Worked_dummy))%>%head(4)
+  summarise(Labor_force_participation = 100*mean(Worked_dummy))
 
 # ### 1.2.2 Use pd.cut
 # - First sort age values 
@@ -78,11 +82,13 @@ age_cutoffs
 
 #### 1.2.2.2 Create age groups
 
-age_group = cut(ages_16to65$ls02_2, age_cutoffs, include.lowest = TRUE)
+ages_16to65$age_groups = cut(ages_16to65$ls02_2, age_cutoffs, include.lowest = TRUE)
+#age_group
+#ages_16to65$age_groups = age_group
+ages_16to65 %>% select(age_groups)
 
 #### 1.2.2.3 Groupby mean of worked dummy
 
-ages_16to65$age_groups = age_group
 ages_16to65 %>%
   group_by(age_groups)%>%
   select(Worked_dummy)%>%
@@ -92,8 +98,8 @@ ages_16to65 %>%
 # Q.2. Construct at least two different definitions of the informal sector to answer the following questions.
 # 
 # - 2.1 What proportion of men and women who work are in the informal sector?
-#   - 2.2 What are the average hours worked of men and women in the informal sector versus the formal sector?
-#   - 2.3 Compare total earnings, average earnings per hour and median earnings per hour in the formal and informal sector for men and women.
+# - 2.2 What are the average hours worked of men and women in the informal sector versus the formal sector?
+# - 2.3 Compare total earnings, average earnings per hour and median earnings per hour in the formal and informal sector for men and women.
 # - 2.4 TB24 asks broadly about occupation using this question repeat c) above. 
 
 # ## 2.1 What proportion of men and women who work are in the informal sector?
@@ -118,30 +124,39 @@ ages_16to65 %>%
 # - 99 Other workers with 29 occupations noncclassified previously, insufficiently specified and not specified
 
 ### 2.1.1 Merge df_income and ages_16to65
+#Create male dummy
 ages_16to65$male_dummy = plyr::mapvalues(ages_16to65$ls04,from= c(1,3), to=c (1,0))
+
+#This code is so we can merge the two data frames
 ages_16to65_small = ages_16to65 %>%select(folio, ls, male_dummy, Worked_dummy)
 df_income_small = df_income %>% select(folio, ls,tb24_26p_cmo,tb44p_2, tb35a_2)
+
+#Merge the data
 merged = merge(df_income_small, ages_16to65_small, by=c("ls","folio"), all=FALSE)
 str(merged)
 
 
 #### 2.1.1.1 Create informal dummy
-
 merged = merged %>% 
   na.omit() %>% 
-  mutate(informal_dummy = as.numeric(tb24_26p_cmo==41 | tb24_26p_cmo==72 | tb24_26p_cmo==81 | tb24_26p_cmo==82))
+  mutate(informal_dummy = as.numeric(tb24_26p_cmo==41| tb24_26p_cmo==72 | tb24_26p_cmo==81 | tb24_26p_cmo==82))
+
+
+merged %>% select(informal_dummy, tb24_26p_cmo)
+
+#merged$informal_dummy = as.numeric(tb24_26p_cmo==41 | tb24_26p_cmo==72 | tb24_26p_cmo==81 | tb24_26p_cmo==82)
+
 
 ### 2.1.2 Workforce participation of men in women in the informal sector
+# merged %>% 
+#   select(tb24_26p_cmo, male_dummy, Worked_dummy)%>% 
+#   na.omit() %>% 
+#   filter(tb24_26p_cmo==41 | tb24_26p_cmo==72 | tb24_26p_cmo==81 | tb24_26p_cmo==82) %>% #Filtered by informal
+#   group_by(male_dummy)%>%
+#   summarise(Pct_working = mean(Worked_dummy*100))
 
-merged %>% 
-  select(tb24_26p_cmo, male_dummy, Worked_dummy)%>% 
-  na.omit() %>% 
-  filter(tb24_26p_cmo==41 | tb24_26p_cmo==72 | tb24_26p_cmo==81 | tb24_26p_cmo==82) %>% #Filtered by informal
-  group_by(male_dummy)%>%
-  summarise(Pct_working = mean(Worked_dummy*100))
 
 ### 2.1.3 Answer proportion of men and women who work are in the informal sector
-
 merged %>% 
   na.omit() %>% 
   group_by(male_dummy)%>%
@@ -149,48 +164,49 @@ merged %>%
 
 ## 2.2 What are the average hours worked of men and women in the informal sector versus the formal sector?
 
-
 ### 2.2.1 Show histogram
-
-
 
 ### 2.2.2 Answer
 
-merged %>% 
-  na.omit() %>% 
-  filter(tb24_26p_cmo==41 | tb24_26p_cmo==72 | tb24_26p_cmo==81 | tb24_26p_cmo==82) %>% #Filtered by informal
-  group_by(male_dummy)%>%
-  summarise(Pct_working = mean(tb44p_2))
-
-merged %>% 
-  na.omit() %>% 
-  filter(tb24_26p_cmo!=41 | tb24_26p_cmo!=72 | tb24_26p_cmo!=81 | tb24_26p_cmo!=82) %>% #Filtered by formal
-  group_by(male_dummy)%>%
-  summarise(Pct_working = mean(tb44p_2))
+# merged %>%
+#   na.omit() %>%
+#   filter(tb24_26p_cmo==41 | tb24_26p_cmo==72 | tb24_26p_cmo==81 | tb24_26p_cmo==82) %>% #Filtered by informal
+#   group_by(male_dummy)%>%
+#   summarise(Pct_working = mean(tb44p_2))
+# 
+# merged %>%
+#   na.omit() %>%
+#   filter(tb24_26p_cmo!=41 | tb24_26p_cmo!=72 | tb24_26p_cmo!=81 | tb24_26p_cmo!=82) %>% #Filtered by formal
+#   group_by(male_dummy)%>%
+#   summarise(Pct_working = mean(tb44p_2))
 
 merged %>% 
   na.omit() %>% 
   group_by(male_dummy, informal_dummy)%>%
-  summarise(Informal_sector_participation =  mean(tb44p_2))
+  summarise(Avg_hours_worked =  mean(tb44p_2))
 
 ## 2.3 Compare total earnings, average earnings per hour and median earnings per hour in the formal and informal sector for men and women.
 
+#Two ways to create new column
 merged$Monthly_hours = merged$tb44p_2*4.3
+merged = merged %>% mutate(Monthly_hours = tb44p_2*4.3)
+#Two ways to create new column
 merged$Hourly_wage = merged$tb35a_2/merged$Monthly_hours
+merged = merged %>% mutate(Hourly_wage  = tb35a_2/Monthly_hours)
 
-merged %>% 
-  na.omit() %>% 
-  filter(tb24_26p_cmo==41 | tb24_26p_cmo==72 | tb24_26p_cmo==81 | tb24_26p_cmo==82) %>% #Filtered by informal
-  group_by(male_dummy)%>%
-  summarise(Avg_hourly_wage = mean(Hourly_wage),
-            Median_hourly_wage = median(Hourly_wage))
-
-merged %>% 
-  na.omit() %>% 
-  filter(tb24_26p_cmo!=41 | tb24_26p_cmo!=72 | tb24_26p_cmo!=81 | tb24_26p_cmo!=82) %>% #Filtered by formal
-  group_by(male_dummy)%>%
-  summarise(Avg_hourly_wage = mean(Hourly_wage),
-            Median_hourly_wage = median(Hourly_wage))
+# merged %>% 
+#   na.omit() %>% 
+#   filter(tb24_26p_cmo==41 | tb24_26p_cmo==72 | tb24_26p_cmo==81 | tb24_26p_cmo==82) %>% #Filtered by informal
+#   group_by(male_dummy)%>%
+#   summarise(Avg_hourly_wage = mean(Hourly_wage),
+#             Median_hourly_wage = median(Hourly_wage))
+# 
+# merged %>% 
+#   na.omit() %>% 
+#   filter(tb24_26p_cmo!=41 | tb24_26p_cmo!=72 | tb24_26p_cmo!=81 | tb24_26p_cmo!=82) %>% #Filtered by formal
+#   group_by(male_dummy)%>%
+#   summarise(Avg_hourly_wage = mean(Hourly_wage),
+#             Median_hourly_wage = median(Hourly_wage))
 
 merged %>% 
   na.omit() %>% 
@@ -202,6 +218,6 @@ merged %>%
 
 merged %>% 
   na.omit() %>% 
-  group_by(informal_dummy)%>%
+  group_by(tb24_26p_cmo)%>%
   summarise(Avg_hourly_wage = mean(Hourly_wage))
 
